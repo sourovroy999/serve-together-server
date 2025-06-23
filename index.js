@@ -27,6 +27,27 @@ app.use(cors(corsOptions))
 app.use(express.json())
 app.use(cookieParser())
 
+//verifytoken middleware
+
+const verifytoken=(req,res,next)=>{
+    const token=req.cookies?.token
+    if(!token) return res.status(401).send({message: 'Unauthorized Access'})
+
+        if(token){
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=>{
+                if(err){
+                    console.log(err);
+                    return res.status(401).send({message:"Unauthorized Access"})
+                }
+                console.log(decoded);
+                req.user=decoded
+
+                next()
+                
+            })
+        }
+}
+
 
 // const uri="mongodb://localhost:27017"
 
@@ -112,7 +133,7 @@ async function run() {
                         }
                     },
                     {
-                        $sort:{parsedDeadline:-1}
+                        $sort:{parsedDeadline:1}
                     },
                     {
                         $limit:6
@@ -148,7 +169,7 @@ async function run() {
         })
 
         //update a single organization post
-        app.put('/update-post/:id', async(req,res)=>{
+        app.put('/update-post/:id', verifytoken,  async(req,res)=>{
             const id=req.params.id
             const updatedData=req.body;
 
@@ -188,7 +209,7 @@ async function run() {
             res.send(result)
 
         })
-        app.get('/volunteer/:email', async(req,res)=>{
+        app.get('/volunteer/:email',verifytoken, async(req,res)=>{
             const email=req.params.email;
             const query={Volunteer_Email:email}
             const result=await volunteersCollection.find(query).toArray()
