@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-// const cookieParser = require('cookieParser');
-// const jwt = require('jwt');
+const cookieParser = require('cookie-parser');
+const jwt=require('jsonwebtoken')
+
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
@@ -24,10 +25,13 @@ const corsOptions={
 
 app.use(cors(corsOptions))
 app.use(express.json())
-// app.use(cookieParser())
+app.use(cookieParser())
 
 
-const uri="mongodb://localhost:27017"
+// const uri="mongodb://localhost:27017"
+
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.iy6spfv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -46,21 +50,33 @@ async function run() {
 
         const organizersCollection=client.db('serveTogether').collection('organizers')
 
-        //jwt generate
-        // app.post('/jwt', async(req,res)=>{
-        //     const email=req.body
-        //     const token=jwt.sign(email, process.env.ACCESS_TOKEN_SECRET,{
-        //         expiresIn:'7d'
-        //     })
+        // jwt generate
+        app.post('/jwt', async(req,res)=>{
+            const email=req.body
+            const token=jwt.sign(email, process.env.ACCESS_TOKEN_SECRET,{
+                expiresIn:'7d'
+            })
 
-        //     res
-        //     .cookie('token', token,{
-        //         httpOnly:true,
-        //         secure:process.env.NODE_ENV === 'production',
-        //         sameSite:process.env.NODE_ENV === 'production'? 'none' : 'strict'
-        //     })
-        //     .send({success: true})
-        // })
+            res
+            .cookie('token', token,{
+                httpOnly:true,
+                secure:process.env.NODE_ENV === 'production',
+                sameSite:process.env.NODE_ENV === 'production'? 'none' : 'strict'
+            })
+            .send({success: true})
+        })
+
+        //clear token after log out
+        app.get('/logout', (req,res)=>{
+            res
+            .clearCookie('token', {
+                httpOnly:true,
+                secure:process.env.NODE_ENV ==='production',
+                sameSite:process.env.NODE_ENV=== 'production' ? 'none' : 'strict',
+                maxAge:0,
+            })
+            .send({success: true})
+        })
 
         //create organizations data
         app.post('/organizations', async(req,res)=>{
@@ -75,6 +91,43 @@ async function run() {
         app.get('/organizationsPosts', async(req,res)=>{
             const result=await organizersCollection.find().toArray()
             res.send(result)
+        })
+
+        //read 6 posts for home page
+        app.get('/urgentPosts', async(req,res)=>{
+            // const result=await organizersCollection.find().limit(6).toArray()
+
+            // res.send(result)
+
+            try {
+                const result=await organizersCollection.aggregate([
+                    {
+                        $addFields:{
+                            parsedDeadline:{
+                                $dateFromString:{
+                                     dateString: "$deadline", // the string field in MM/DD/YYYY
+                                     format: "%m/%d/%Y"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $sort:{parsedDeadline:-1}
+                    },
+                    {
+                        $limit:6
+                    }
+                ]).toArray()
+
+                res.send(result)
+                
+            } catch (error) {
+                 console.error("Error fetching urgent posts:", error);
+    res.status(500).send({ error: "Failed to fetch urgent posts" });
+                
+            }
+
+            
         })
 
         //read single organizer post
@@ -113,6 +166,16 @@ async function run() {
                 res.status(500).json({error: 'Something went wrong', details: error})
             }
 
+        })
+
+
+        //delete a post
+        app.delete('/delete-post/:id', async(req,res)=>{
+            const id=req.params.id
+            const query={_id : new ObjectId(id)}
+            const result=await organizersCollection.deleteOne(query)
+            res.send(result)
+            
         })
 
 
