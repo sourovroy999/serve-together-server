@@ -102,6 +102,11 @@ async function run() {
         //create organizations data
         app.post('/organizations', async(req,res)=>{
             const organizersData=req.body 
+
+            if(organizersData.volunteernumber){
+                organizersData.volunteernumber=Number(organizersData.volunteernumber);
+            }
+
             const result=await organizersCollection.insertOne(organizersData)
             res.send(result)
         })
@@ -110,7 +115,15 @@ async function run() {
 
         //read all posts by organizers
         app.get('/organizationsPosts', async(req,res)=>{
-            const result=await organizersCollection.find().toArray()
+            const search=req.query.search
+
+            let query={
+                title:{$regex:search, $options:'i'}
+            }
+
+
+
+            const result=await organizersCollection.find(query).toArray()
             res.send(result)
         })
 
@@ -202,13 +215,57 @@ async function run() {
 
 
         //for volunteersss
+        app.get('/volunteersall', async(req,res)=>{
+            
+            const result=await volunteersCollection.find().toArray();
+            res.send(result)
+        })
+
+        //request to be a  volunteer
 
         app.post('/volunteers', async(req,res)=>{
             const volunteersData=req.body
-            const result=await volunteersCollection.insertOne(volunteersData)
-            res.send(result)
+            // console.log(volunteersData);
+            
+
+
+            try{
+                const result=await volunteersCollection.insertOne(volunteersData)
+            
+                  const postId = String(volunteersData.postId); // Just i
+                  console.log(postId);
+                  console.log(typeof(postId));
+                  
+                  
+                 const volunteercount=await organizersCollection.updateOne(
+                {_id: new ObjectId(String(postId)), volunteernumber:{$gt:0} },
+                {$inc: {volunteernumber: -1}}
+            );
+            if (volunteercount.modifiedCount === 0) {
+  console.log("Nothing updated. Check if volunteernumber is already 0 or not a number.");
+}
+            console.log(volunteercount);
+            
+
+            res.send({
+                volunteerInsertResult: result,
+                volunteerCountUpdate: volunteercount,
+                
+            });
+
+            }
+
+            catch(err){
+                console.log(err);
+                 res.status(500).send({ error: 'Something went wrong' });
+                
+            }
+
 
         })
+
+
+
         app.get('/volunteer/:email',verifytoken, async(req,res)=>{
             const email=req.params.email;
             const query={Volunteer_Email:email}
@@ -217,7 +274,7 @@ async function run() {
             
         })
 
-        app.delete('/volunteerdelete/:id', async(req,res)=>{
+        app.delete('/volunteerdelete/:id', verifytoken, async(req,res)=>{
             const id=req.params.id
             const query={_id:new ObjectId(id)}
             const result=await volunteersCollection.deleteOne(query)
