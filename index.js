@@ -10,7 +10,8 @@ require('dotenv').config()
 
 const port=process.env.PORT || 8000
 
-const app=express()
+const app=express() 
+
 
 const corsOptions={
     origin:[
@@ -115,11 +116,13 @@ async function run() {
 
         //read all posts by organizers
         app.get('/organizationsPosts', async(req,res)=>{
-            const search=req.query.search
+            const search=req.query.search || '';
 
-            let query={
-                title:{$regex:search, $options:'i'}
-            }
+            const query=search ? {title:{$regex: search, $options:'i'}} : {};
+
+            // let query={
+            //     title:{$regex:search, $options:'i'}
+            // }
 
 
 
